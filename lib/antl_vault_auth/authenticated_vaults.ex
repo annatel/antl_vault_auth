@@ -11,17 +11,17 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
     @ets_table = :ets.new(@ets_table, @ets_table_spec)
   end
 
-  @spec renew_all_tokens(pos_integer()) :: :ok
-  def renew_all_tokens(time_to_expiration) when is_integer(time_to_expiration) do
+  @spec login_all(pos_integer()) :: :ok
+  def login_all(time_to_expiration) when is_integer(time_to_expiration) do
     all()
     |> Enum.filter(&time_for_renew?(&1, time_to_expiration))
     |> Enum.each(fn {{role_id, secret_id}, vault} ->
-      renew_token(vault, %{role_id: role_id, secret_id: secret_id})
+      login(vault, %{role_id: role_id, secret_id: secret_id})
     end)
   end
 
-  @spec renew_token(Vault.t(), map) :: {:ok, Vault.t()} | {:error, [term]}
-  def renew_token(%Vault{} = vault, %{} = params) do
+  @spec login(Vault.t(), map) :: {:ok, Vault.t()} | {:error, [term]}
+  def login(%Vault{} = vault, %{} = params) do
     case Vault.auth(vault, params) do
       {:ok, vault} ->
         save(vault, params)
