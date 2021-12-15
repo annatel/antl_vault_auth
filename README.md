@@ -56,7 +56,7 @@ options = [
 params = %{role_id: "role_id_1", secret_id: "secret_id_1"}
 
 with vault <- Vault.new(options),
-     {:ok, vault} <- AntlVaultAuth.Tokens.auth(vault, params)
+     {:ok, vault} <- AntlVaultAuth.auth(vault, params)
 do
   Vault.read(vault, "sims/#{icc_id}")
 end

@@ -12,7 +12,7 @@ defmodule AntlVaultAuth.TokensTest do
     {:ok, bypass: bypass}
   end
 
-  test "auth", %{bypass: bypass} do
+  test "auth/2", %{bypass: bypass} do
     options = vault_options(bypass.port)
     creds = %{role_id: @role_id_1, secret_id: @secret_id_1}
     url = options[:host]
@@ -38,7 +38,7 @@ defmodule AntlVaultAuth.TokensTest do
     assert {:ok, _vault} = AntlVaultAuth.Tokens.auth(Vault.new(options), creds)
   end
 
-  test "renew", %{bypass: bypass} do
+  test "renew_all/1", %{bypass: bypass} do
     options = vault_options(bypass.port)
     creds = %{role_id: @role_id_1, secret_id: @secret_id_1}
     url = options[:host]
@@ -60,13 +60,13 @@ defmodule AntlVaultAuth.TokensTest do
 
     # Renew allowed 10 seconds before token will be expired.
     # There should be no a HTTP request, because there is more then 10 seconds to the token expiration
-    AntlVaultAuth.Tokens.renew(10)
+    AntlVaultAuth.Tokens.renew_all(10)
 
     expect_once_login(bypass, @role_id_1, @secret_id_1)
 
     # Renew allowed 70 seconds before token will be expired
     # There must be a HTTP request, because there is less then 70 seconds to the token expiration
-    AntlVaultAuth.Tokens.renew(70)
+    AntlVaultAuth.Tokens.renew_all(70)
   end
 
   defp expect_once_login(bypass, role_id, secret_id) do

@@ -16,7 +16,7 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
 
   @impl true
   def handle_info(:renew, state) do
-    AntlVaultAuth.Tokens.renew(state.time_to_expiration)
+    AntlVaultAuth.Tokens.renew_all(state.time_to_expiration)
     schedule_token_renewal(state.checkout_interval)
     {:noreply, state}
   end
