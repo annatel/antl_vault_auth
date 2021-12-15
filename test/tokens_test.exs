@@ -47,10 +47,21 @@ defmodule AntlVaultAuth.TokensTest do
 
       assert authenticated_vault_client_2.token != authenticated_vault_client_1.token
 
+      assert {:ok, ^authenticated_vault_client_2} =
+               AntlVaultAuth.Tokens.auth(vault_client_2, credentials)
+
       Bypass.down(bypass_2)
     end
 
     test "when the cache contains an authenticated vault client for the credentials but with a different auth method, authenticates to the vault and save the vault client",
+         %{bypass: _bypass} do
+    end
+
+    test "when the cache contains an authenticated vault client for the credentials but with a different engine, authenticates to the vault and save the vault client",
+         %{bypass: _bypass} do
+    end
+
+    test "when the cache contains an authenticated vault client for the credentials but with a different http client, authenticates to the vault and save the vault client",
          %{bypass: _bypass} do
     end
 
