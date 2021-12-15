@@ -6,7 +6,7 @@ defmodule AntlVaultAuth do
   def auth(%Vault{} = vault, %{} = params) do
     case AuthenticatedVaults.lookup(vault, params) do
       %Vault{} -> {:ok, vault}
-      nil -> vault |> AuthenticatedVaults.renew_token(params)
+      nil -> vault |> AuthenticatedVaults.login(params)
     end
   end
 end

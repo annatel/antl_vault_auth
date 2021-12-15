@@ -13,7 +13,7 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
 
   @spec login_all(pos_integer()) :: :ok
   def login_all(time_to_expiration) when is_integer(time_to_expiration) do
-    all()
+    list_authenticated_vaults()
     |> Enum.filter(&time_for_renew?(&1, time_to_expiration))
     |> Enum.each(fn {{role_id, secret_id}, vault} ->
       login(vault, %{role_id: role_id, secret_id: secret_id})
@@ -46,7 +46,7 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
     {:ok, vault}
   end
 
-  defp all(), do: :ets.tab2list(@ets_table)
+  defp list_authenticated_vaults(), do: :ets.tab2list(@ets_table)
 
   defp same_vault?(options, options), do: true
   defp same_vault?(_, _), do: false
