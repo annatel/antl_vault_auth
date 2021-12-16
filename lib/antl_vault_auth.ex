@@ -5,7 +5,7 @@ defmodule AntlVaultAuth do
   @spec auth(Vault.t(), map()) :: {:ok, Vault.t()} | {:error, any()}
   def auth(%Vault{} = vault, %{} = params) do
     case AuthenticatedVaults.lookup(vault, params) do
-      %Vault{} -> {:ok, vault}
+      %Vault{} = vault -> {:ok, vault}
       nil -> vault |> AuthenticatedVaults.login(params)
     end
   end

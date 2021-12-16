@@ -6,6 +6,8 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
 
   require Logger
 
+  alias AntlVaultAuth.VaultUtils
+
   @spec init() :: true
   def init() do
     @ets_table = :ets.new(@ets_table, @ets_table_spec)
@@ -13,11 +15,9 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
 
   @spec login_all(pos_integer()) :: :ok
   def login_all(time_to_expiration) when is_integer(time_to_expiration) do
-    list_authenticated_vaults()
-    |> Enum.filter(&time_for_renew?(&1, time_to_expiration))
-    |> Enum.each(fn {{role_id, secret_id}, vault} ->
-      login(vault, %{role_id: role_id, secret_id: secret_id})
-    end)
+    authenticated_vaults_list()
+    |> Enum.filter(&VaultUtils.expired_in_less_than?(elem(&1, 1), time_to_expiration))
+    |> Enum.each(&login(elem(&1, 1), elem(&1, 1).credentials))
   end
 
   @spec login(Vault.t(), map) :: {:ok, Vault.t()} | {:error, [term]}
@@ -32,30 +32,18 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
   end
 
   @spec lookup(Vault.t(), map) :: Vault.t() | nil
-  def lookup(%Vault{} = vault, %{role_id: role_id, secret_id: secret_id}) do
-    with [{_, ets_vault}] <- :ets.lookup(@ets_table, {role_id, secret_id}),
-         true <- same_vault?(vault_options(ets_vault), vault_options(vault)) do
-      ets_vault
-    else
+  def lookup(%Vault{} = vault, params) do
+    case :ets.lookup(@ets_table, VaultUtils.vault_hash(vault, params)) do
+      [{_, ets_vault}] -> ets_vault
       _ -> nil
     end
   end
 
-  defp save(vault, %{role_id: role_id, secret_id: secret_id}) do
-    true = :ets.insert(@ets_table, {{role_id, secret_id}, vault})
+  defp save(%Vault{} = vault, params) do
+    true = :ets.insert(@ets_table, {VaultUtils.vault_hash(vault, params), vault})
     {:ok, vault}
   end
 
-  defp list_authenticated_vaults(), do: :ets.tab2list(@ets_table)
+  defp authenticated_vaults_list(), do: :ets.tab2list(@ets_table)
 
-  defp same_vault?(options, options), do: true
-  defp same_vault?(_, _), do: false
-
-  defp vault_options(%Vault{} = vault) do
-    vault
-    |> Map.from_struct()
-    |> Map.delete(:credentials)
-    |> Map.delete(:token)
-    |> Map.delete(:token_expires_at)
-  end
 end
