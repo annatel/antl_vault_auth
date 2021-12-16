@@ -36,7 +36,6 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
 
   @impl true
   def handle_info(:renew, state) do
-    IO.puts "renew"
     AuthenticatedVaults.login_all(state.time_to_expiration)
     schedule_token_renewal(state.checkout_interval)
     {:noreply, state}
@@ -44,7 +43,6 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
 
   @impl true
   def handle_cast({:force_relogin, vault, params}, state) do
-    IO.puts "force_relogin"
     AuthenticatedVaults.login(vault, params)
     Semaphore.release(@semaphores, semaphore_name(vault, params))
     {:noreply, state}
