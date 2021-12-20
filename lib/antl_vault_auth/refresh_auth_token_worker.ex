@@ -2,21 +2,25 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
   @moduledoc false
   use GenServer
 
-  alias AntlVaultAuth.{AuthenticatedVaults, VaultUtils, Semaphore}
-
-  @semaphores :refresh_auth_token_worker_semaphores_holder # unique name
+  alias AntlVaultAuth.AuthenticatedVaults
 
   # Api
 
-  @doc """
-  Schedule the task of immediate login to Vault (update authenticated vault client)
-  Identical requests {vault, param} will be deduplicated in the GenServer Queue
-  """
-  @spec schedule_immediate_login(Vault.t, map) :: boolean()
-  def schedule_immediate_login(vault, params) do
-    if Semaphore.acquire(@semaphores, semaphore_name(vault, params), 1) do
-      GenServer.cast(__MODULE__, {:force_relogin, vault, params})
+  @spec refresh_token(Vault.t, map) :: boolean()
+  def refresh_token(vault, params) do
+    # This is the rare case and the operation is not atomic but this is not critical
+    unless has_refresh_message(vault, params) do
+      GenServer.cast(__MODULE__, {:login, vault, params})
     end
+  end
+
+  defp has_refresh_message(vault, params) do
+    {:messages, messages} = Process.info(Process.whereis(__MODULE__), :messages)
+
+    messages
+    |> Enum.filter(&match?({_, {:login, _, _}}, &1))
+    |> Enum.map(fn({_, {_, vault, params}}) -> {vault, params} end)
+    |> Enum.any?(&match?(^&1, {vault, params}))
   end
 
   # GenServer impl
@@ -27,8 +31,8 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
 
   @impl true
   def init(args) do
-    Semaphore.init(@semaphores)
     AuthenticatedVaults.init()
+    login_clients(args)
     state = make_state(args)
     schedule_token_renewal(state.checkout_interval)
     {:ok, state}
@@ -42,14 +46,9 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
   end
 
   @impl true
-  def handle_cast({:force_relogin, vault, params}, state) do
+  def handle_cast({:login, vault, params}, state) do
     AuthenticatedVaults.login(vault, params)
-    Semaphore.release(@semaphores, semaphore_name(vault, params))
     {:noreply, state}
-  end
-
-  defp semaphore_name(%Vault{} = vault, params) do
-    VaultUtils.vault_hash(vault, params)
   end
 
   defp schedule_token_renewal(interval) do
@@ -58,9 +57,16 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
 
   defp make_state(args) do
     %{
-      checkout_interval: Keyword.get(args, :checkout_interval, 60),
-      time_to_expiration: Keyword.get(args, :time_to_expiration, 60 * 5)
+      checkout_interval: Map.get(args, :checkout_interval, 60),
+      time_to_expiration: Map.get(args, :time_to_expiration, 60 * 5)
     }
   end
+
+  defp login_clients(%{clients: clients}) when is_list(clients) do
+    Enum.each(clients, fn {vault, params} ->
+      AuthenticatedVaults.login(vault, params)
+    end)
+  end
+  defp login_clients(_), do: :ok
 
 end

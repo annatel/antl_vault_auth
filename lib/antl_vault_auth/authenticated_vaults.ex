@@ -6,8 +6,6 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
 
   require Logger
 
-  alias AntlVaultAuth.VaultUtils
-
   @spec init() :: true
   def init() do
     @ets_table = :ets.new(@ets_table, @ets_table_spec)
@@ -16,7 +14,7 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
   @spec login_all(pos_integer()) :: :ok
   def login_all(time_to_expiration) when is_integer(time_to_expiration) do
     authenticated_vaults_list()
-    |> Enum.filter(&VaultUtils.expired_in_less_than?(elem(&1, 1), time_to_expiration))
+    |> Enum.filter(&expired_in_less_than?(elem(&1, 1), time_to_expiration))
     |> Enum.each(&login(elem(&1, 1), elem(&1, 1).credentials))
   end
 
@@ -27,23 +25,42 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
         save(vault, params)
 
       {:error, error} ->
+        # The AntlVaultAuth.RefreshAuthTokenWorker.refresh_token(vault, params) method
+        # must not be called here because inside of the 'refresh_token' method the AuthenticatedVaults.login(vault, params)
+        # method will be called again and we can fall into an infinite loop,
+        # for example, if credentials will be revoked
         {:error, error} |> tap(&Logger.error(inspect(&1)))
     end
   end
 
   @spec lookup(Vault.t(), map) :: Vault.t() | nil
   def lookup(%Vault{} = vault, params) do
-    case :ets.lookup(@ets_table, VaultUtils.vault_hash(vault, params)) do
+    case :ets.lookup(@ets_table, vault_hash(vault, params)) do
       [{_, ets_vault}] -> ets_vault
       _ -> nil
     end
   end
 
   defp save(%Vault{} = vault, params) do
-    true = :ets.insert(@ets_table, {VaultUtils.vault_hash(vault, params), vault})
+    true = :ets.insert(@ets_table, {vault_hash(vault, params), vault})
     {:ok, vault}
   end
 
   defp authenticated_vaults_list(), do: :ets.tab2list(@ets_table)
 
+  defp vault_hash(%Vault{} = vault, params) do
+    :erlang.phash2({vault_options(vault), params})
+  end
+
+  defp vault_options(%Vault{} = vault) do
+    vault
+    |> Map.from_struct()
+    |> Map.delete(:credentials)
+    |> Map.delete(:token)
+    |> Map.delete(:token_expires_at)
+  end
+
+  defp expired_in_less_than?(%Vault{token_expires_at: expires_at}, time_to_expiration) do
+    NaiveDateTime.diff(expires_at, NaiveDateTime.utc_now(), :second) < time_to_expiration
+  end
 end

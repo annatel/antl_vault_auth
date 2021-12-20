@@ -20,8 +20,10 @@ end
 After package are installed your must add it to the your Application supervision tree in the `application.ex` file.
 There is two parameters you could pass as options to the `RefreshAuthTokenWorker`:
 
-- `checkout_interval` - Checkout interval of the token expiration (seconds)
-- `time_to_expiration` - Renewing of Token is allowed then the time before a token will be expired is less then typed here (seconds)
+- `checkout_interval` - Checkout interval of the token expiration (seconds). Optional.
+- `time_to_expiration` - Renewing of Token is allowed then the time before a token will be expired is less then typed here
+(seconds). Optional.
+- `clients` - the Vault clients with credentials to warm up the cache. Optional.
 
 Your can skip this options. By default, the `checkout_interval` = 60 and `time_to_expiration` = 60 * 5.
 
@@ -30,15 +32,30 @@ Your can skip this options. By default, the `checkout_interval` = 60 and `time_t
 def start(_type, _args) do
   children = [
     ...
-    {AntlVaultAuth.RefreshAuthTokenWorker, [
-      checkout_interval: 5,
-      time_to_expiration: 55
-    ]}
+    {AntlVaultAuth.RefreshAuthTokenWorker, %{
+      checkout_interval: 10, # in seconds
+      time_to_expiration: 55, # in seconds
+      clients: clients() # Vault client to warm up the cache
+    }}
     ...
   ]
 
   opts = [strategy: :one_for_one, name: LibClient.Supervisor]
   Supervisor.start_link(children, opts)
+end
+
+def clients() do
+  options = [
+      host: "http://127.0.0.1:8200",
+      json: Jason,
+      engine: Vault.Engine.KVV1,
+      auth: Vault.Auth.Approle,
+      http: Vault.HTTP.Tesla,
+    ]
+
+  params = %{role_id: "role_id_1", secret_id: "secret_id_1"}
+
+  [{Vault.new(options), params}]
 end
 ```
 
