@@ -7,30 +7,26 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
   # Api
 
   @spec refresh_token(Vault.t, map) :: boolean()
-  def refresh_token(vault, params) do
-    # This is the rare case and the operation is not atomic but this is not critical
-    unless has_refresh_message(vault, params) do
+  def refresh_token(%Vault{} = vault, %{} = params) do
+    # This is the rare case and the couple of operations is not atomic but this is not critical
+    unless message_in_queue?({:login, vault, params}) do
       GenServer.cast(__MODULE__, {:login, vault, params})
     end
   end
 
-  defp has_refresh_message(vault, params) do
+  defp message_in_queue?(message) do
     {:messages, messages} = Process.info(Process.whereis(__MODULE__), :messages)
-
-    messages
-    |> Enum.filter(&match?({_, {:login, _, _}}, &1))
-    |> Enum.map(fn({_, {_, vault, params}}) -> {vault, params} end)
-    |> Enum.any?(&match?(^&1, {vault, params}))
+    [] != Enum.filter(messages, &match?(^&1, {:"$gen_cast", message}))
   end
 
   # GenServer impl
 
-  def start_link(args) do
+  def start_link(%{} = args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @impl true
-  def init(args) do
+  def init(%{} = args) do
     AuthenticatedVaults.init()
     login_clients(args)
     state = make_state(args)
@@ -46,7 +42,7 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
   end
 
   @impl true
-  def handle_cast({:login, vault, params}, state) do
+  def handle_cast({:login, %Vault{} = vault, %{} = params}, state) do
     AuthenticatedVaults.login(vault, params)
     {:noreply, state}
   end
@@ -55,7 +51,7 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
     Process.send_after(self(), :renew, :timer.seconds(interval))
   end
 
-  defp make_state(args) do
+  defp make_state(%{} = args) do
     %{
       checkout_interval: Map.get(args, :checkout_interval, 60),
       time_to_expiration: Map.get(args, :time_to_expiration, 60 * 5)
@@ -63,7 +59,7 @@ defmodule AntlVaultAuth.RefreshAuthTokenWorker do
   end
 
   defp login_clients(%{clients: clients}) when is_list(clients) do
-    Enum.each(clients, fn {vault, params} ->
+    Enum.each(clients, fn {%Vault{} = vault, %{} = params} ->
       AuthenticatedVaults.login(vault, params)
     end)
   end

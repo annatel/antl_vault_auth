@@ -14,8 +14,8 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
   @spec login_all(pos_integer()) :: :ok
   def login_all(time_to_expiration) when is_integer(time_to_expiration) do
     authenticated_vaults_list()
-    |> Enum.filter(&expired_in_less_than?(elem(&1, 1), time_to_expiration))
-    |> Enum.each(&login(elem(&1, 1), elem(&1, 1).credentials))
+    |> Enum.filter(&expired_in_less_than?(&1, time_to_expiration))
+    |> Enum.each(&login(&1, &1.credentials))
   end
 
   @spec login(Vault.t(), map) :: {:ok, Vault.t()} | {:error, [term]}
@@ -34,21 +34,23 @@ defmodule AntlVaultAuth.AuthenticatedVaults do
   end
 
   @spec lookup(Vault.t(), map) :: Vault.t() | nil
-  def lookup(%Vault{} = vault, params) do
+  def lookup(%Vault{} = vault, %{} = params) do
     case :ets.lookup(@ets_table, vault_hash(vault, params)) do
       [{_, ets_vault}] -> ets_vault
       _ -> nil
     end
   end
 
-  defp save(%Vault{} = vault, params) do
+  defp save(%Vault{} = vault, %{} = params) do
     true = :ets.insert(@ets_table, {vault_hash(vault, params), vault})
     {:ok, vault}
   end
 
-  defp authenticated_vaults_list(), do: :ets.tab2list(@ets_table)
+  defp authenticated_vaults_list() do
+    @ets_table |> :ets.tab2list() |> Enum.map(&elem(&1, 1))
+  end
 
-  defp vault_hash(%Vault{} = vault, params) do
+  defp vault_hash(%Vault{} = vault, %{} = params) do
     :erlang.phash2({vault_options(vault), params})
   end
 
