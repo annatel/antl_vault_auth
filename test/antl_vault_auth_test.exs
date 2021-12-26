@@ -4,6 +4,8 @@ defmodule AntlVaultAuth.AntlVaultAuthTest do
   alias AntlVaultAuth.AuthenticatedVaults
 
   setup do
+    # AuthenticatedVaults.init() => a ets table of cache
+    # is recreated at the begining of each test
     AuthenticatedVaults.init()
     bypass = Bypass.open()
     {:ok, bypass: bypass}
@@ -176,6 +178,25 @@ defmodule AntlVaultAuth.AntlVaultAuthTest do
       {:ok, authenticated_vault_client} = AntlVaultAuth.auth(vault_client, credentials)
 
       assert authenticated_vault_client == AntlVaultAuth.AuthenticatedVaults.lookup(vault_client, credentials)
+    end
+
+    test "when the cache contains an authenticated vault client for the credentials, force authentication to the vault and save (in cache) the new vault client",
+      %{bypass: bypass}
+    do
+      vault_client = default_vault_client(bypass.port)
+
+      credentials = %{role_id: "role_id", secret_id: "secret_id"}
+
+      valid_response = %{auth: %{client_token: "token1", lease_duration: 60}}
+      expect_once_login(bypass, "/v1/auth/approle/login", credentials, valid_response)
+      {:ok, authenticated_vault_client} = AntlVaultAuth.auth(vault_client, credentials)
+
+      valid_response = %{auth: %{client_token: "token2", lease_duration: 60}}
+      expect_once_login(bypass, "/v1/auth/approle/login", credentials, valid_response)
+      {:ok, authenticated_vault_client_foced} = AntlVaultAuth.auth(vault_client, credentials, force: true)
+
+      assert authenticated_vault_client.token != authenticated_vault_client_foced.token
+      assert authenticated_vault_client_foced == AntlVaultAuth.AuthenticatedVaults.lookup(vault_client, credentials)
     end
   end
 
