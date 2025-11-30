@@ -2,7 +2,7 @@ defmodule AntlVaultAuth.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/annatel/antl_vault_auth.git"
-  @version "0.1.0"
+  @version "0.2.0"
 
   def project do
     [
@@ -27,11 +27,11 @@ defmodule AntlVaultAuth.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:libvault, "~> 0.2.0"},
+      {:libvault, "~> 0.2"},
       {:tesla, "~> 1.3", optional: true},
       {:jason, ">= 1.0.0"},
       {:ex_doc, "~> 0.24", only: :dev, runtime: false},
-      {:bypass, "~> 2.1", only: :test}
+      {:test_server, "~> 0.1", only: :test}
     ]
   end
 
